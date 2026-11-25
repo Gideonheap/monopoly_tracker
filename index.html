@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font: 14px system-ui, sans-serif; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>London Monopoly Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@500;700&display=swap">
+<style>
+/* Layout: classic 11x11 London board (28 tickable places) with a centre banner, then the same places as a numbered notes list. */
+:root {
+  --bg: #e6ede7;
+  --fg: #17201a;
+  --muted: #55645a;
+  --sq: #d1e6d5;
+  --line: #1b241e;
+  --card: #f4f9f4;
+  --accent: #d6221c;
+  --on-accent: #ffffff;
+  --ok: #17803d;
+  --on-ok: #ffffff;
+  --field: #ffffff;
+  --field-line: #93a99a;
+  --ring: #0b57d0;
+  --c-brown: #955436;
+  --c-lightblue: #aae0fa;
+  --c-pink: #d93a96;
+  --c-orange: #f7941d;
+  --c-red: #ed1b24;
+  --c-yellow: #fef200;
+  --c-green: #1fb25a;
+  --c-darkblue: #0072bb;
+  --c-station: #2a2f2c;
+  --c-utility: #a9bcae;
+  --font-display: 'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1410;
+    --fg: #e6eee8;
+    --muted: #9db0a3;
+    --sq: #1c2a21;
+    --line: #6f8577;
+    --card: #17201a;
+    --accent: #e5453f;
+    --on-accent: #ffffff;
+    --ok: #4ccb7e;
+    --on-ok: #06210f;
+    --field: #101612;
+    --field-line: #4a5c50;
+    --ring: #8ab4ff;
+    --c-station: #b7c2bb;
+    --c-utility: #55695b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1410;
+  --fg: #e6eee8;
+  --muted: #9db0a3;
+  --sq: #1c2a21;
+  --line: #6f8577;
+  --card: #17201a;
+  --accent: #e5453f;
+  --on-accent: #ffffff;
+  --ok: #4ccb7e;
+  --on-ok: #06210f;
+  --field: #101612;
+  --field-line: #4a5c50;
+  --ring: #8ab4ff;
+  --c-station: #b7c2bb;
+  --c-utility: #55695b;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.page { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(28px, 7vw, 44px); line-height: 1.05; }
+h2 { font-size: 22px; }
+.intro { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
+
+/* Board */
+.board-wrap { container-type: inline-size; width: 100%; }
+.board {
+  display: grid;
+  grid-template-columns: 1.45fr repeat(9, 1fr) 1.45fr;
+  grid-template-rows: 1.45fr repeat(9, 1fr) 1.45fr;
+  aspect-ratio: 1;
+  width: 100%;
+  background: var(--sq);
+  border: 2px solid var(--line);
+}
+.sq {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--sq);
+  color: var(--fg);
+  font: inherit;
+  text-align: center;
+}
+button.sq { cursor: pointer; }
+button.sq:hover { background: color-mix(in srgb, var(--ok) 10%, var(--sq)); }
+button.sq[aria-pressed="true"] { background: color-mix(in srgb, var(--ok) 20%, var(--sq)); }
+button.sq:focus-visible, .row input:focus-visible, textarea:focus-visible, .ghost:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: -3px;
+  z-index: 2;
+}
+.sq.bottom { flex-direction: column; }
+.sq.top { flex-direction: column-reverse; }
+.sq.left { flex-direction: row-reverse; }
+.sq.right { flex-direction: row; }
+.band { flex: 0 0 22%; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.ini { display: none; font-family: var(--font-display); font-weight: 700; font-size: max(8px, 2.8cqw); letter-spacing: 0.03em; line-height: 1; text-transform: uppercase; }
+.sq.top .band { border-bottom: 0; border-top: 1px solid var(--line); }
+.sq.left .band { border-bottom: 0; border-left: 1px solid var(--line); }
+.sq.right .band { border-bottom: 0; border-right: 1px solid var(--line); }
+.sq.bottom .band, .sq.top .band { min-height: 6px; }
+.body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 2px;
+  gap: 1px;
+}
+.name, .price, .sym { font-family: var(--font-display); text-transform: uppercase; line-height: 1.05; overflow-wrap: anywhere; }
+.name { font-size: max(7.5px, 1.25cqw); font-weight: 500; letter-spacing: 0.02em; }
+.price { font-size: max(7.5px, 1.2cqw); color: var(--muted); font-weight: 500; }
+.sym { font-weight: 700; font-size: max(9px, 3.4cqw); }
+.corner .sym { font-size: max(8px, 2.7cqw); }
+.sym.q { color: var(--c-orange); font-size: max(14px, 4.6cqw); }
+.box {
+  width: max(13px, 2.5cqw);
+  aspect-ratio: 1;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--field);
+  flex: none;
+}
+.box::after { content: ""; font-size: max(8px, 1.7cqw); line-height: 1; font-weight: 700; }
+button.sq[aria-pressed="true"] .box { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+button.sq[aria-pressed="true"] .box::after { content: "\2713"; }
+@container (max-width: 639px) {
+  .sq .name, .sq .price { display: none; }
+  .corner .name { display: none; }
+  .sq.prop .box { width: 4.6cqw; }
+  .sq.prop .box::after { font-size: 3cqw; }
+  .sq.prop .band { flex-basis: 34%; }
+  .sq.prop .ini { display: block; }
+  .sq.left .band, .sq.right .band { writing-mode: vertical-rl; }
+}
+.centre {
+  grid-area: 2 / 2 / 11 / 11;
+  position: relative;
+  overflow: hidden;
+  background: var(--sq);
+  border: 1px solid var(--line);
+}
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: 124%;
+  transform: translate(-50%, -50%) rotate(-35deg);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10.5cqw;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
+  text-align: center;
+  border: 2px solid var(--line);
+  padding: 0.1em 0;
+}
+.tag, .count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: max(10px, 2.7cqw);
+  padding-inline: 6%;
+}
+.tag { top: 6%; color: var(--muted); font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
+.count { bottom: 6%; font-weight: 600; font-variant-numeric: tabular-nums; }
+.count strong { font-family: var(--font-display); font-size: 1.6em; line-height: 1; }
+
+/* List */
+.list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sub { color: var(--muted); margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+.ghost {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--field-line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.ghost.armed { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+ol.places { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; }
+.row { display: flex; flex-direction: column; gap: 10px; padding-block: 14px; border-top: 1px solid var(--field-line); }
+.row:last-child { border-bottom: 1px solid var(--field-line); }
+.row-head { display: flex; align-items: center; gap: 12px; cursor: pointer; min-width: 0; }
+.row-head input { width: 24px; height: 24px; flex: none; accent-color: var(--ok); margin: 0; cursor: pointer; }
+.swatch { width: 12px; align-self: stretch; min-height: 36px; border: 1px solid var(--line); flex: none; }
+.rtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rname { font-weight: 600; overflow-wrap: anywhere; }
+.rmeta { font-size: 13px; color: var(--muted); }
+textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  font: inherit;
+  font-size: 16px;
+  color: var(--fg);
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+textarea::placeholder { color: var(--muted); opacity: 0.8; }
+.photo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.thumb {
+  display: block;
+  width: 96px;
+  height: 72px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: 6px;
+  cursor: zoom-in;
+}
+.thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.thumb:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.photo-note { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; }
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(8, 12, 9, 0.92);
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.lightbox img { display: block; max-width: 100%; min-height: 0; flex: 1 1 auto; object-fit: contain; }
+.lb-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; color: #f1f5f2; flex: none; }
+.lb-title { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.04em; font-size: 18px; width: 100%; text-align: center; }
+.lightbox .ghost { color: #f1f5f2; border-color: rgba(241, 245, 242, 0.55); }
+.lightbox .ghost:focus-visible { outline-color: #8ab4ff; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+</head>
+<body>
+<main class="page">
+  <header>
+    <h1>London Monopoly Tracker</h1>
+    <p class="intro">Tap a square when you have been there. Every place on the board has a notes box and room for one photo in the list underneath.</p>
+  </header>
+
+  <section aria-label="Board">
+    <div class="board-wrap"><div class="board" id="board"></div></div>
+  </section>
+
+  <section aria-labelledby="list-title">
+    <div class="list-head">
+      <div>
+        <h2 id="list-title">Your visits</h2>
+        <p class="sub" id="listCount"></p>
+      </div>
+      <button class="ghost" id="clearBtn" type="button">Clear all</button>
+    </div>
+    <p class="sub">Ticks, notes and photos are saved on this device only.</p>
+    <ol class="places" id="places"></ol>
+  </section>
+</main>
+
+<script>
+(function () {
+  var P = function (n, s, g, p) { return { t: 'prop', n: n, s: s, g: g, p: p }; };
+  var SQ = [
+    { t: 'corner', sym: 'GO', n: 'Collect £200' },
+    P('Old Kent Road', 'Old Kent Rd', 'brown', 60),
+    { t: 'chest' },
+    P('Whitechapel Road', 'Whitechapel Rd', 'brown', 60),
+    { t: 'tax', n: 'Income Tax', v: '£200' },
+    P("King's Cross Station", "King's Cross", 'station', 200),
+    P('The Angel Islington', 'Angel Islington', 'lightblue', 100),
+    { t: 'chance' },
+    P('Euston Road', 'Euston Rd', 'lightblue', 100),
+    P('Pentonville Road', 'Pentonville Rd', 'lightblue', 120),
+    { t: 'corner', sym: 'JAIL', n: 'Just Visiting' },
+    P('Pall Mall', 'Pall Mall', 'pink', 140),
+    { t: 'utility', sym: 'EC', n: 'Electric Company' },
+    P('Whitehall', 'Whitehall', 'pink', 140),
+    P('Northumberland Avenue', "Northumb'land Ave", 'pink', 160),
+    P('Marylebone Station', 'Marylebone', 'station', 200),
+    P('Bow Street', 'Bow Street', 'orange', 180),
+    { t: 'chest' },
+    P('Marlborough Street', 'Marlborough St', 'orange', 180),
+    P('Vine Street', 'Vine Street', 'orange', 200),
+    { t: 'corner', sym: 'FREE', n: 'Free Parking' },
+    P('Strand', 'Strand', 'red', 220),
+    { t: 'chance' },
+    P('Fleet Street', 'Fleet Street', 'red', 220),
+    P('Trafalgar Square', 'Trafalgar Sq', 'red', 240),
+    P('Fenchurch Street Station', 'Fenchurch St', 'station', 200),
+    P('Leicester Square', 'Leicester Sq', 'yellow', 260),
+    P('Coventry Street', 'Coventry St', 'yellow', 260),
+    { t: 'utility', sym: 'WW', n: 'Water Works' },
+    P('Piccadilly', 'Piccadilly', 'yellow', 280),
+    { t: 'corner', sym: 'GO TO JAIL', n: 'Go to Jail' },
+    P('Regent Street', 'Regent Street', 'green', 300),
+    P('Oxford Street', 'Oxford Street', 'green', 300),
+    { t: 'chest' },
+    P('Bond Street', 'Bond Street', 'green', 320),
+    P('Liverpool Street Station', 'Liverpool St', 'station', 200),
+    { t: 'chance' },
+    P('Park Lane', 'Park Lane', 'darkblue', 350),
+    { t: 'tax', n: 'Super Tax', v: '£100' },
+    P('Mayfair', 'Mayfair', 'darkblue', 400)
+  ];
+  var GROUP = {
+    brown: 'Brown', lightblue: 'Light blue', pink: 'Pink', orange: 'Orange', red: 'Red',
+    yellow: 'Yellow', green: 'Green', darkblue: 'Dark blue', station: 'Station'
+  };
+
+  // Text colour for each band, and the short label shown on a band when the board is narrow.
+  var ON = {
+    brown: '#ffffff', lightblue: '#10201a', pink: '#ffffff', orange: '#1a1204', red: '#ffffff',
+    yellow: '#1a1800', green: '#06210f', darkblue: '#ffffff', station: 'var(--card)'
+  };
+  var AB = {
+    'Old Kent Road': 'OKR', 'Whitechapel Road': 'WCR', "King's Cross Station": 'KX', 'The Angel Islington': 'AI',
+    'Euston Road': 'EUS', 'Pentonville Road': 'PEN', 'Pall Mall': 'PM',
+    'Whitehall': 'WH', 'Northumberland Avenue': 'NA', 'Marylebone Station': 'MAR', 'Bow Street': 'BOW',
+    'Marlborough Street': 'MLB', 'Vine Street': 'VIN', 'Strand': 'STR', 'Fleet Street': 'FLT',
+    'Trafalgar Square': 'TSQ', 'Fenchurch Street Station': 'FEN', 'Leicester Square': 'LSQ',
+    'Coventry Street': 'COV', 'Piccadilly': 'PIC', 'Regent Street': 'REG',
+    'Oxford Street': 'OXF', 'Bond Street': 'BND', 'Liverpool Street Station': 'LIV', 'Park Lane': 'PL',
+    'Mayfair': 'MAY'
+  };
+
+  var KEY = 'london-monopoly-tracker-v1';
+  var state = { visited: {}, notes: {} };
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        state.visited = parsed.visited || {};
+        state.notes = parsed.notes || {};
+      }
+    }
+  } catch (e) {}
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  function pos(i) {
+    if (i === 0) return [11, 11];
+    if (i < 10) return [11, 11 - i];
+    if (i === 10) return [11, 1];
+    if (i < 20) return [21 - i, 1];
+    if (i === 20) return [1, 1];
+    if (i < 30) return [1, i - 19];
+    if (i === 30) return [1, 11];
+    return [i - 29, 11];
+  }
+  function side(i) {
+    if (i % 10 === 0) return 'corner';
+    if (i < 10) return 'bottom';
+    if (i < 20) return 'left';
+    if (i < 30) return 'top';
+    return 'right';
+  }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  // Photos: one per place. A small thumbnail and a larger copy are saved on this device (IndexedDB).
+  var photoDB = null, canSave = true, photos = {}, thumbUrls = {}, photoUI = {}, current = null, lbUrl = null;
+  var DB_NAME = 'london-monopoly-tracker-photos', STORE = 'photos';
+
+  function openDB() {
+    return new Promise(function (res, rej) {
+      try {
+        var r = indexedDB.open(DB_NAME, 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore(STORE); };
+        r.onsuccess = function () { res(r.result); };
+        r.onerror = function () { rej(r.error); };
+      } catch (e) { rej(e); }
+    });
+  }
+  function dbRun(mode, fn) {
+    return new Promise(function (res, rej) {
+      if (!photoDB) { rej(new Error('no store')); return; }
+      var tx = photoDB.transaction(STORE, mode);
+      fn(tx.objectStore(STORE));
+      tx.oncomplete = function () { res(); };
+      tx.onerror = function () { rej(tx.error); };
+      tx.onabort = function () { rej(tx.error); };
+    });
+  }
+  function dbLoad() {
+    return new Promise(function (res, rej) {
+      var out = {};
+      var req = photoDB.transaction(STORE, 'readonly').objectStore(STORE).openCursor();
+      req.onsuccess = function () {
+        var c = req.result;
+        if (c) { out[c.key] = c.value; c.continue(); } else { res(out); }
+      };
+      req.onerror = function () { rej(req.error); };
+    });
+  }
+  function resize(file, max, quality) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * sc));
+        c.height = Math.max(1, Math.round(img.naturalHeight * sc));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { if (b) res(b); else rej(new Error('encode')); }, 'image/jpeg', quality);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('load')); };
+      img.src = url;
+    });
+  }
+
+  function refreshPhoto(k) {
+    var u = photoUI[k], p = photos[k];
+    if (!u) return;
+    if (thumbUrls[k]) { URL.revokeObjectURL(thumbUrls[k]); delete thumbUrls[k]; }
+    if (p) {
+      thumbUrls[k] = URL.createObjectURL(p.thumb);
+      u.img.src = thumbUrls[k];
+      u.thumb.hidden = false;
+      u.add.hidden = true;
+      u.hint.textContent = canSave
+        ? 'Tap the photo to see it larger.'
+        : 'Tap the photo to see it larger. This browser cannot save photos, so it will be lost when you close the page.';
+    } else {
+      u.thumb.hidden = true;
+      u.add.hidden = false;
+      u.hint.textContent = '';
+    }
+  }
+  function refreshAllHints() {
+    Object.keys(photoUI).forEach(function (k) { if (photos[k]) refreshPhoto(k); });
+  }
+  function setPhoto(k, file) {
+    var u = photoUI[k];
+    u.hint.textContent = 'Saving photo…';
+    Promise.all([resize(file, 480, 0.8), resize(file, 2000, 0.85)]).then(function (r) {
+      photos[k] = { thumb: r[0], full: r[1] };
+      refreshPhoto(k);
+      return dbRun('readwrite', function (st) { st.put(photos[k], String(k)); })
+        .catch(function () { canSave = false; refreshAllHints(); });
+    }).catch(function () {
+      u.hint.textContent = 'Could not read that photo. Try a JPEG or PNG.';
+    });
+  }
+  function removePhoto(k) {
+    delete photos[k];
+    refreshPhoto(k);
+    dbRun('readwrite', function (st) { st.delete(String(k)); }).catch(function () {});
+  }
+  function clearAllPhotos() {
+    Object.keys(photoUI).forEach(function (k) { delete photos[k]; refreshPhoto(k); });
+    dbRun('readwrite', function (st) { st.clear(); }).catch(function () {});
+  }
+
+  // Full-size viewer
+  var lb = el('div', 'lightbox');
+  lb.hidden = true;
+  lb.setAttribute('role', 'dialog');
+  lb.setAttribute('aria-modal', 'true');
+  lb.setAttribute('aria-label', 'Photo viewer');
+  var lbImg = el('img');
+  var lbBar = el('div', 'lb-bar');
+  var lbTitle = el('span', 'lb-title');
+  var lbReplace = el('button', 'ghost', 'Replace');
+  var lbRemove = el('button', 'ghost', 'Remove');
+  var lbClose = el('button', 'ghost', 'Close');
+  lbReplace.type = 'button'; lbRemove.type = 'button'; lbClose.type = 'button';
+  lbBar.appendChild(lbTitle);
+  lbBar.appendChild(lbReplace);
+  lbBar.appendChild(lbRemove);
+  lbBar.appendChild(lbClose);
+  lb.appendChild(lbImg);
+  lb.appendChild(lbBar);
+  document.body.appendChild(lb);
+
+  function openLB(k) {
+    var p = photos[k];
+    if (!p) return;
+    current = k;
+    if (lbUrl) URL.revokeObjectURL(lbUrl);
+    lbUrl = URL.createObjectURL(p.full);
+    lbImg.src = lbUrl;
+    lbImg.alt = 'Photo of ' + photoUI[k].name;
+    lbTitle.textContent = photoUI[k].name;
+    lb.hidden = false;
+    lbClose.focus();
+  }
+  function closeLB() {
+    lb.hidden = true;
+    lbImg.removeAttribute('src');
+    if (lbUrl) { URL.revokeObjectURL(lbUrl); lbUrl = null; }
+    var k = current;
+    current = null;
+    if (k != null && photoUI[k]) {
+      (photoUI[k].thumb.hidden ? photoUI[k].add : photoUI[k].thumb).focus();
+    }
+  }
+  lbClose.addEventListener('click', closeLB);
+  lbReplace.addEventListener('click', function () { var k = current; closeLB(); photoUI[k].input.click(); });
+  lbRemove.addEventListener('click', function () { var k = current; removePhoto(k); closeLB(); });
+  lb.addEventListener('click', function (e) { if (e.target === lb) closeLB(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !lb.hidden) closeLB(); });
+
+  function buildPhoto(s) {
+    var u = { name: s.n };
+    u.wrap = el('div', 'photo-row');
+    u.input = document.createElement('input');
+    u.input.type = 'file';
+    u.input.accept = 'image/*';
+    u.input.id = 'photo-in-' + s.k;
+    u.input.hidden = true;
+    u.input.setAttribute('aria-label', 'Choose a photo for ' + s.n);
+    u.add = el('button', 'ghost', 'Add photo');
+    u.add.type = 'button';
+    u.thumb = el('button', 'thumb');
+    u.thumb.type = 'button';
+    u.thumb.setAttribute('aria-label', 'View photo of ' + s.n);
+    u.img = el('img');
+    u.img.alt = 'Photo of ' + s.n;
+    u.thumb.appendChild(u.img);
+    u.hint = el('span', 'photo-note');
+    u.add.addEventListener('click', function () { u.input.click(); });
+    u.thumb.addEventListener('click', function () { openLB(s.k); });
+    u.input.addEventListener('change', function () {
+      var f = u.input.files && u.input.files[0];
+      u.input.value = '';
+      if (f) setPhoto(s.k, f);
+    });
+    u.wrap.appendChild(u.input);
+    u.wrap.appendChild(u.add);
+    u.wrap.appendChild(u.thumb);
+    u.wrap.appendChild(u.hint);
+    photoUI[s.k] = u;
+    refreshPhoto(s.k);
+    return u.wrap;
+  }
+
+  openDB().then(function (d) {
+    photoDB = d;
+    return dbLoad();
+  }).then(function (all) {
+    Object.keys(all).forEach(function (k) {
+      if (photoUI[k] && all[k] && all[k].thumb && all[k].full) {
+        photos[k] = all[k];
+        refreshPhoto(k);
+      }
+    });
+  }).catch(function () {
+    canSave = false;
+    refreshAllHints();
+  });
+
+  var board = document.getElementById('board');
+  var places = document.getElementById('places');
+  var squares = {}, checks = {}, notes = {};
+  var total = 0;
+  var keys = [];
+  var k = 0;
+
+  SQ.forEach(function (s, i) {
+    var p = pos(i);
+    var sd = side(i);
+    var node;
+    if (s.t === 'prop') {
+      k += 1; total += 1; keys.push(k);
+      s.k = k;
+      node = el('button', 'sq prop ' + sd);
+      node.type = 'button';
+      node.setAttribute('aria-pressed', 'false');
+      node.setAttribute('aria-label', s.n);
+      var band = el('div', 'band');
+      band.style.background = 'var(--c-' + s.g + ')';
+      band.style.color = ON[s.g];
+      band.appendChild(el('span', 'ini', AB[s.n]));
+      var body = el('div', 'body');
+      body.appendChild(el('span', 'name', s.s));
+      body.appendChild(el('span', 'price', '£' + s.p));
+      body.appendChild(el('span', 'box'));
+      node.appendChild(band);
+      node.appendChild(body);
+      squares[k] = node;
+      (function (kk) { node.addEventListener('click', function () { toggle(kk); }); })(k);
+    } else {
+      node = el('div', 'sq other ' + sd);
+      if (s.t === 'utility') k += 1; // keeps saved ticks, notes and photos lined up with their squares
+      var b2 = el('div', 'body');
+      if (s.t === 'corner' || s.t === 'utility') {
+        b2.appendChild(el('span', 'sym', s.sym));
+        b2.appendChild(el('span', 'name', s.n));
+      } else if (s.t === 'chance') {
+        b2.appendChild(el('span', 'sym q', '?'));
+        b2.appendChild(el('span', 'name', 'Chance'));
+      } else if (s.t === 'chest') {
+        b2.appendChild(el('span', 'sym', 'CC'));
+        b2.appendChild(el('span', 'name', 'Community Chest'));
+      } else {
+        b2.appendChild(el('span', 'sym', '£'));
+        b2.appendChild(el('span', 'name', s.n));
+        b2.appendChild(el('span', 'price', s.v));
+      }
+      node.appendChild(b2);
+    }
+    node.style.gridRow = String(p[0]);
+    node.style.gridColumn = String(p[1]);
+    board.appendChild(node);
+
+    if (s.t === 'prop') {
+      var li = el('li', 'row');
+      var label = el('label', 'row-head');
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.id = 'chk-' + s.k;
+      (function (kk) { chk.addEventListener('change', function () { toggle(kk, this.checked); }); })(s.k);
+      var sw = el('span', 'swatch');
+      sw.style.background = 'var(--c-' + s.g + ')';
+      var txt = el('span', 'rtext');
+      var nm = el('span', 'rname');
+      nm.appendChild(document.createTextNode(s.n));
+      txt.appendChild(nm);
+      txt.appendChild(el('span', 'rmeta', GROUP[s.g] + ' · £' + s.p));
+      label.appendChild(chk);
+      label.appendChild(sw);
+      label.appendChild(txt);
+      var ta = document.createElement('textarea');
+      ta.id = 'note-' + s.k;
+      ta.rows = 2;
+      ta.placeholder = 'Notes on your visit: when, who with, what you saw or ate.';
+      ta.setAttribute('aria-label', 'Notes for ' + s.n);
+      ta.value = state.notes[s.k] || '';
+      (function (kk) { ta.addEventListener('input', function () { state.notes[kk] = this.value; save(); }); })(s.k);
+      li.appendChild(label);
+      li.appendChild(ta);
+      li.appendChild(buildPhoto(s));
+      places.appendChild(li);
+      checks[s.k] = chk;
+      notes[s.k] = ta;
+    }
+  });
+
+  // Centre of the board
+  var centre = el('div', 'centre');
+  centre.appendChild(el('div', 'tag', 'London · visit every square'));
+  centre.appendChild(el('div', 'banner', 'MONOPOLY'));
+  var count = el('div', 'count');
+  centre.appendChild(count);
+  board.appendChild(centre);
+
+  var listCount = document.getElementById('listCount');
+  function paint() {
+    var c = 0;
+    for (var i = 0; i < keys.length; i++) {
+      var n = keys[i];
+      var v = !!state.visited[n];
+      if (v) c += 1;
+      squares[n].setAttribute('aria-pressed', v ? 'true' : 'false');
+      checks[n].checked = v;
+    }
+    count.innerHTML = '<strong>' + c + '</strong> of ' + total + ' visited';
+    listCount.textContent = c + ' of ' + total + ' places visited';
+  }
+  function toggle(n, force) {
+    var next = typeof force === 'boolean' ? force : !state.visited[n];
+    if (next) state.visited[n] = true; else delete state.visited[n];
+    save();
+    paint();
+  }
+
+  var clearBtn = document.getElementById('clearBtn');
+  var armed = false, timer = null;
+  function disarm() { armed = false; clearBtn.classList.remove('armed'); clearBtn.textContent = 'Clear all'; }
+  clearBtn.addEventListener('click', function () {
+    if (!armed) {
+      armed = true;
+      clearBtn.classList.add('armed');
+      clearBtn.textContent = 'Tap again to clear ticks, notes and photos';
+      clearTimeout(timer);
+      timer = setTimeout(disarm, 4000);
+      return;
+    }
+    clearTimeout(timer);
+    state = { visited: {}, notes: {} };
+    keys.forEach(function (n) { notes[n].value = ''; });
+    clearAllPhotos();
+    save();
+    paint();
+    disarm();
+  });
+
+  paint();
+})();
+</script>
+
+</body>
+</html>
